@@ -8,7 +8,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings.sentence_transformer import (SentenceTransformerEmbeddings,)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-
+from langchain_openai import OpenAI
 
 
 #work_dir = os.getcwd()
@@ -35,6 +35,7 @@ def create_embeddings(textfiles_dir, model = ''):
     print('Creating embeddings for ' + textfiles_dir)
     db = Chroma.from_documents(chunks, embedding_function(model), 
                                persist_directory=embeddings_dir(textfiles_dir, model))
+    return db
     
 def load_embeddings(textfiles_dir, model = ''):
     print('Loading embeddings from ' + textfiles_dir + " " + model)
@@ -49,10 +50,39 @@ def find_chunks(db, query):
         print(docs[i].page_content)
     return docs
 
+
+db = load_embeddings(ECO101, model = 'OpenAI')
+llm = OpenAI(temperature=0.3, openai_api_key=config.OPENAI_API_KEY)
+
+from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
+
+from langchain_core.output_parsers import StrOutputParser
+
+output_parser = StrOutputParser()
+
+qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=db.as_retriever())
+explanation_prompt = PromptTemplate.from_template("Explain how the content {content} is relevant to the following query: {query}")
+explanation_chain = explanation_prompt | llm | output_parser
+            
+#explanation = explanation_chain.invoke({"content":"Bla bla", "query":standard_query})
+
+
+def get_response(db, qa, query):
+    chunks = db.similarity_search(query)
+    context = " If it is sufficient, answer with a single paragraph. If necessary, use more than one paragraph."
+    return qa.run(query+context), chunks
+
+#response, chunks = get_response(db, qa, standard_query)
+
+
+'''
 def do_things():
-    create_embeddings(ECO101, model = 'OpenAI')
+    db = create_embeddings(ECO101, model = 'OpenAI')
+    chunks = find_chunks(db, standard_query) 
     db = load_embeddings(ECO101, model = 'OpenAI')
-    find_chunks(db, 'why people make decisions')    
+    chunks = find_chunks(db, standard_query)  
+    print(chunks)  
 
 def do_things2(query = standard_query):
     db = load_embeddings(ECO101, model = 'OpenAI')
@@ -61,3 +91,5 @@ def do_things2(query = standard_query):
 
 #do_things()
 #do_things2(standard_query)
+'''
+
